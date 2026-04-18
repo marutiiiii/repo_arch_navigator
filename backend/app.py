@@ -15,6 +15,12 @@ from utils.logic import (
 )
 from utils.compatibility import analyze_compatibility
 from utils.git_diff import get_git_changes
+from flask import redirect
+from utils.auth import (
+    get_github_login_url, handle_github_callback,
+    get_google_login_url, handle_google_callback,
+    get_current_user, FRONTEND_URL
+)
 
 app = Flask(__name__)
 CORS(app)  # Allow requests from any origin (React dev server)
@@ -25,6 +31,45 @@ CORS(app)  # Allow requests from any origin (React dev server)
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "ok"}), 200
+
+
+# ─────────────────────────────────────────
+# Auth endpoints
+# ─────────────────────────────────────────
+@app.route('/auth/github/login', methods=['GET'])
+def github_login():
+    return redirect(get_github_login_url())
+
+@app.route('/auth/github/callback', methods=['GET'])
+def github_callback():
+    code = request.args.get('code')
+    if code:
+        handle_github_callback(code)
+    return redirect(FRONTEND_URL)
+
+@app.route('/auth/google/login', methods=['GET'])
+def google_login():
+    return redirect(get_google_login_url())
+
+@app.route('/auth/google/callback', methods=['GET'])
+def google_callback():
+    code = request.args.get('code')
+    if code:
+        handle_google_callback(code)
+    return redirect(FRONTEND_URL)
+
+@app.route('/auth/me', methods=['GET'])
+def auth_me():
+    return jsonify(get_current_user()), 200
+
+@app.route('/auth/logout', methods=['POST'])
+def auth_logout():
+    user = get_current_user()
+    user["logged_in"] = False
+    user["profile"] = None
+    user["repos"] = []
+    user["provider"] = None
+    return jsonify({"success": True}), 200
 
 
 # ─────────────────────────────────────────

@@ -11,19 +11,23 @@ import ChangeAnalyzer from "./pages/ChangeAnalyzer.tsx";
 import AskCode from "./pages/AskCode.tsx";
 import Settings from "./pages/Settings.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import Login from "./pages/Login.tsx";
 import { RepoAnalysisProvider } from "./context/RepoAnalysisContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <RepoAnalysisProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route element={<AppLayout />}>
+    <AuthProvider>
+      <RepoAnalysisProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/repository" element={<RepositoryAnalysis />} />
               <Route path="/compatibility" element={<Compatibility />} />
@@ -37,7 +41,8 @@ const App = () => (
         </BrowserRouter>
       </TooltipProvider>
     </RepoAnalysisProvider>
-  </QueryClientProvider>
+  </AuthProvider>
+</QueryClientProvider>
 );
 
 export default App;
