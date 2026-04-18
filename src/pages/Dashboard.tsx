@@ -1,57 +1,73 @@
 import { useState } from "react";
-import { ArrowRight, Github, Sparkles, GitBranch, Layers, ShieldCheck, RefreshCw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowRight, Github, Sparkles, GitBranch, Layers,
+  ShieldCheck, AlertCircle, CheckCircle2, Loader2,
+} from "lucide-react";
 import { SectionHeader } from "@/components/SectionHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LoadingSkeleton, SkeletonCard } from "@/components/states/LoadingSkeleton";
-import { ErrorState } from "@/components/states/ErrorState";
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/states/EmptyState";
-
-type DemoState = "empty" | "loading" | "error";
-
-const stateOptions: { id: DemoState; label: string }[] = [
-  { id: "empty", label: "Empty" },
-  { id: "loading", label: "Loading" },
-  { id: "error", label: "Error" },
-];
-
-const stats = [
-  { label: "Repositories", icon: Github },
-  { label: "Dependencies", icon: Layers },
-  { label: "Compatibility", icon: ShieldCheck },
-  { label: "Recent Changes", icon: GitBranch },
-];
+import { analyzeRepo } from "@/lib/api";
+import { useRepoAnalysis } from "@/context/RepoAnalysisContext";
 
 const Dashboard = () => {
-  const [demoState, setDemoState] = useState<DemoState>("empty");
+  const navigate = useNavigate();
+  const { result, setResult, isLoading, setIsLoading, error, setError } = useRepoAnalysis();
   const [url, setUrl] = useState("");
+
+  async function handleAnalyze() {
+    if (!url.trim()) return;
+    setError(null);
+    setIsLoading(true);
+    try {
+      const data = await analyzeRepo(url.trim());
+      setResult(data);
+      navigate("/repository");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const stats = [
+    {
+      label: "Repositories",
+      icon: Github,
+      value: result ? 1 : "—",
+      sub: result ? result.repo_url.split("/").slice(-2).join("/") : "No data yet",
+    },
+    {
+      label: "Total Files",
+      icon: Layers,
+      value: result ? result.total_files : "—",
+      sub: result ? "source files detected" : "No data yet",
+    },
+    {
+      label: "Dependencies",
+      icon: ShieldCheck,
+      value: result ? result.total_dependencies : "—",
+      sub: result ? "import relationships" : "No data yet",
+    },
+    {
+      label: "Entry Point",
+      icon: GitBranch,
+      value: result ? "✓" : "—",
+      sub: result ? (result.entry_point ?? "unknown") : "No data yet",
+    },
+  ];
 
   return (
     <div className="space-y-8">
       <SectionHeader
         title="Welcome back 👋"
         description="Analyze any repository's architecture, dependencies, and compatibility in seconds."
-        actions={
-          <div className="inline-flex rounded-lg border border-border bg-card p-1">
-            {stateOptions.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setDemoState(s.id)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-smooth ${
-                  demoState === s.id
-                    ? "bg-gradient-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        }
       />
 
-      {/* Hero / analyze card */}
+      {/* Hero / Analyze Card */}
       <Card className="overflow-hidden border-border/60 shadow-elegant">
         <div className="relative bg-gradient-card p-6 sm:p-8">
           <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
@@ -67,22 +83,56 @@ const Dashboard = () => {
                 Enter a GitHub repository to begin
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Paste a public GitHub URL — we'll map files, dependencies, and compatibility issues into a visual graph.
+                Paste a public GitHub URL — we'll map files, dependencies, and architecture into a visual graph.
               </p>
+
+              {/* Error banner */}
+              {error && (
+                <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Success banner */}
+              {result && !isLoading && (
+                <div className="mt-4 flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  Analysis complete — {result.total_files} files parsed.
+                </div>
+              )}
 
               <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                 <div className="relative flex-1">
                   <Github className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
+                    id="repo-url-input"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
                     placeholder="https://github.com/owner/repository"
                     className="h-11 pl-10 bg-card"
+                    disabled={isLoading}
                   />
                 </div>
-                <Button size="lg" className="h-11 bg-gradient-primary hover:opacity-90 shadow-glow">
-                  Analyze Repository
-                  <ArrowRight className="ml-1.5 h-4 w-4" />
+                <Button
+                  id="analyze-btn"
+                  size="lg"
+                  className="h-11 bg-gradient-primary hover:opacity-90 shadow-glow min-w-[160px]"
+                  onClick={handleAnalyze}
+                  disabled={isLoading || !url.trim()}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Analyzing…
+                    </>
+                  ) : (
+                    <>
+                      Analyze Repository
+                      <ArrowRight className="ml-1.5 h-4 w-4" />
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -96,48 +146,78 @@ const Dashboard = () => {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map((s) =>
-          demoState === "loading" ? (
-            <SkeletonCard key={s.label} />
-          ) : (
-            <Card key={s.label} className="border-border/60">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{s.label}</p>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-                    <s.icon className="h-4 w-4" />
-                  </div>
+        {stats.map((s) => (
+          <Card key={s.label} className="border-border/60">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  {s.label}
+                </p>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+                  <s.icon className="h-4 w-4" />
                 </div>
-                <p className="mt-3 text-2xl font-bold text-foreground">—</p>
-                <p className="mt-1 text-xs text-muted-foreground">No data yet</p>
-              </CardContent>
-            </Card>
-          ),
-        )}
+              </div>
+              <p className="mt-3 text-2xl font-bold text-foreground">{s.value}</p>
+              <p className="mt-1 text-xs text-muted-foreground truncate">{s.sub}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Activity area showing the selected state */}
+      {/* Recent analyses */}
       <Card className="border-border/60">
         <CardContent className="p-6">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="text-base font-semibold text-foreground">Recent Analyses</h3>
-              <p className="text-xs text-muted-foreground">A history of repositories you've analyzed will appear here.</p>
+              <h3 className="text-base font-semibold text-foreground">Analysis Results</h3>
+              <p className="text-xs text-muted-foreground">
+                Top files by importance score will appear here after analysis.
+              </p>
             </div>
-            <Button variant="ghost" size="sm" className="text-muted-foreground">
-              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-              Refresh
-            </Button>
+            {result && (
+              <Badge variant="secondary" className="text-xs">
+                {result.analysis.filter((f) => f.tag === "HIGH").length} High-impact files
+              </Badge>
+            )}
           </div>
 
-          {demoState === "loading" && <LoadingSkeleton lines={5} />}
-          {demoState === "error" && <ErrorState description="Unable to load recent analyses. Check your connection and try again." />}
-          {demoState === "empty" && (
+          {!result ? (
             <EmptyState
               icon={Github}
               title="No analyses yet"
               description="Once you analyze a repository, its summary will appear here for quick access."
             />
+          ) : (
+            <div className="space-y-2">
+              {result.analysis
+                .slice()
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 8)
+                .map((item) => (
+                  <div
+                    key={item.file}
+                    className="flex items-center justify-between rounded-lg border border-border/50 bg-card/50 px-4 py-2.5 text-sm"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {item.is_entry && (
+                        <Badge className="shrink-0 text-[10px] bg-primary/20 text-primary border-primary/30">
+                          entry
+                        </Badge>
+                      )}
+                      {item.is_dead && (
+                        <Badge variant="outline" className="shrink-0 text-[10px]">dead</Badge>
+                      )}
+                      <span className="truncate text-muted-foreground font-mono text-xs">{item.file}</span>
+                    </div>
+                    <Badge
+                      variant={item.tag === "HIGH" ? "default" : "secondary"}
+                      className="ml-4 shrink-0 text-[10px]"
+                    >
+                      {item.tag} · {item.score}
+                    </Badge>
+                  </div>
+                ))}
+            </div>
           )}
         </CardContent>
       </Card>

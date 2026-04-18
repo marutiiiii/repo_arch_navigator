@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, FolderTree, ShieldCheck, GitCompare, Settings, Boxes } from "lucide-react";
+import { LayoutDashboard, FolderTree, ShieldCheck, GitCompare, Settings, Boxes, MessageSquareCode } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +17,7 @@ const items = [
   { title: "Repository Analysis", url: "/repository", icon: FolderTree },
   { title: "Compatibility Report", url: "/compatibility", icon: ShieldCheck },
   { title: "Change Analyzer", url: "/changes", icon: GitCompare },
+  { title: "Ask the Code", url: "/ask", icon: MessageSquareCode },
 ];
 
 const secondary = [{ title: "Settings", url: "/settings", icon: Settings }];
