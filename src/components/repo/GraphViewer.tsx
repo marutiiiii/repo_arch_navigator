@@ -213,7 +213,7 @@ const GraphCanvas = () => {
       </div>
 
       {/* Interactive Canvas */}
-      <div className="flex-1 w-full bg-background relative">
+      <div className="w-full bg-background relative" style={{ height: "600px" }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
