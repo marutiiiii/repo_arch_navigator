@@ -1,8 +1,23 @@
-import { Network } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import { Network, Filter } from "lucide-react";
 import { EmptyState } from "@/components/states/EmptyState";
 import { useRepoAnalysis } from "@/context/RepoAnalysisContext";
-import { useMemo } from "react";
 import dagre from "dagre";
+import {
+  ReactFlow,
+  ReactFlowProvider,
+  MiniMap,
+  Controls,
+  Background,
+  useNodesState,
+  useEdgesState,
+  Handle,
+  Position,
+  NodeProps,
+  BackgroundVariant
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { cn } from "@/lib/utils";
 
 const TAG_COLOR: Record<string, string> = {
   HIGH:   "#a78bfa",  // violet
@@ -10,186 +25,234 @@ const TAG_COLOR: Record<string, string> = {
   LOW:    "#6b7280",  // gray
 };
 
-const NODE_RADIUS = 6;
-const CANVAS_W = 700;
-const CANVAS_H = 420;
-const PADDING = 48;
+// --------------------------------------------------------
+// 1. Custom Node Component
+// --------------------------------------------------------
+const RepoNode = ({ data }: NodeProps) => {
+  const isEntry = data.is_entry as boolean;
+  const isDead = data.is_dead as boolean;
+  const tag = data.tag as string;
+  const label = data.label as string;
+  
+  const color = isEntry ? "#22d3ee" : TAG_COLOR[tag] ?? "#6b7280";
 
-export const GraphViewer = () => {
+  return (
+    <div 
+      className={cn(
+        "relative rounded-md border bg-card/90 backdrop-blur-md px-3 py-2 text-xs shadow-sm min-w-[120px] max-w-[200px] text-center",
+        isDead ? "opacity-50" : "opacity-100"
+      )}
+      style={{
+        borderColor: color,
+        boxShadow: isEntry ? `0 0 15px ${color}40` : 'none'
+      }}
+    >
+      <Handle type="target" position={Position.Top} className="w-2 h-2 rounded-full !bg-muted-foreground/50 border-none" />
+      
+      <div className="flex flex-col items-center justify-center gap-1">
+        {isEntry && (
+          <span className="text-[9px] uppercase tracking-wider font-bold" style={{ color }}>
+            Entry Point
+          </span>
+        )}
+        <span className="font-medium text-foreground break-words truncate w-full">
+          {label.split("/").pop() ?? label}
+        </span>
+        <span className="text-[10px] text-muted-foreground mt-0.5" title={label}>
+          {label.length > 20 ? "..." + label.slice(-20) : label}
+        </span>
+      </div>
+
+      <Handle type="source" position={Position.Bottom} className="w-2 h-2 rounded-full !bg-muted-foreground/50 border-none" />
+    </div>
+  );
+};
+
+const nodeTypes = {
+  repoNode: RepoNode,
+};
+
+// --------------------------------------------------------
+// 2. Dagre Layout Function
+// --------------------------------------------------------
+const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
+
+  dagreGraph.setGraph({ rankdir: direction, nodesep: 60, ranksep: 80 });
+
+  nodes.forEach((node) => {
+    // Rough estimate of node width/height for layouting
+    dagreGraph.setNode(node.id, { width: 140, height: 60 });
+  });
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(dagreGraph);
+
+  return {
+    nodes: nodes.map((node) => {
+      const nodeWithPosition = dagreGraph.node(node.id);
+      return {
+        ...node,
+        // offset center correctly
+        position: { x: nodeWithPosition.x - 70, y: nodeWithPosition.y - 30 },
+      };
+    }),
+    edges,
+  };
+};
+
+// --------------------------------------------------------
+// 3. Main Viewer Component
+// --------------------------------------------------------
+const GraphCanvas = () => {
   const { result } = useRepoAnalysis();
+  
+  // Filtering states
+  const [showLowPriority, setShowLowPriority] = useState(false);
+  const [showDeadCode, setShowDeadCode] = useState(false);
 
-  const { nodes, nodeMap, edges, bbox } = useMemo(() => {
-    if (!result?.graph || result.graph.nodes.length === 0) 
-      return { nodes: [], nodeMap: new Map(), edges: [], bbox: { w: CANVAS_W, h: CANVAS_H } };
+  // React Flow state
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-    const raw = result.graph.nodes;
-    const rawEdges = result.graph.edges;
+  // Process data when result or filters change
+  useEffect(() => {
+    if (!result?.graph) return;
 
-    const g = new dagre.graphlib.Graph();
-    g.setGraph({ rankdir: "TB", nodesep: 80, ranksep: 120 });
-    g.setDefaultEdgeLabel(() => ({}));
+    let activeNodes = result.graph.nodes;
+    
+    // Apply Filters
+    if (!showLowPriority) {
+      activeNodes = activeNodes.filter(n => n.tag !== "LOW" || n.is_entry);
+    }
+    if (!showDeadCode) {
+      activeNodes = activeNodes.filter(n => !n.is_dead || n.is_entry);
+    }
 
-    // Add nodes to dagre
-    raw.forEach((n) => {
-      // rough sizing to prevent overlap. The circle itself is small, but labeling needs space.
-      g.setNode(n.id, { width: 140, height: 60 });
-    });
+    // Safety net: ensure edge targets/sources exist in active nodes
+    const activeNodeIds = new Set(activeNodes.map(n => n.id));
+    const activeEdges = result.graph.edges.filter(
+      e => activeNodeIds.has(e.source) && activeNodeIds.has(e.target)
+    );
 
-    // Add edges to dagre
-    rawEdges.forEach((e) => {
-      g.setEdge(e.source, e.target);
-    });
-
-    // Compute topological layout
-    dagre.layout(g);
-
-    let minX = Infinity, minY = Infinity;
-    let maxX = -Infinity, maxY = -Infinity;
-
-    // Get nodes
-    const positioned = raw.map((n) => {
-      const dNode = g.node(n.id);
-      if (dNode.x < minX) minX = dNode.x;
-      if (dNode.y < minY) minY = dNode.y;
-      if (dNode.x > maxX) maxX = dNode.x;
-      if (dNode.y > maxY) maxY = dNode.y;
-      return { ...n, x: dNode.x, y: dNode.y };
-    });
-
-    // Apply padding
-    const paddingX = 120;
-    const paddingY = 80;
-    const width = maxX - minX + paddingX * 2;
-    const height = maxY - minY + paddingY * 2;
-
-    const finalPlaced = positioned.map((n) => ({
-      ...n,
-      x: n.x - minX + paddingX,
-      y: n.y - minY + paddingY,
+    // Map to React Flow format
+    const rfNodes = activeNodes.map((n) => ({
+      id: n.id,
+      type: "repoNode",
+      data: { ...n },
+      position: { x: 0, y: 0 }, // Dagre will overwrite this
     }));
 
-    const map = new Map(finalPlaced.map((n) => [n.id, n]));
-    return { 
-      nodes: finalPlaced, 
-      nodeMap: map, 
-      edges: rawEdges, 
-      bbox: { w: Math.max(width, CANVAS_W), h: Math.max(height, CANVAS_H) } 
-    };
-  }, [result]);
+    const rfEdges = activeEdges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      animated: true,
+      style: { stroke: "#6b7280", opacity: 0.5 },
+    }));
+
+    const layouted = getLayoutedElements(rfNodes, rfEdges);
+    setNodes(layouted.nodes);
+    setEdges(layouted.edges);
+
+  }, [result, showLowPriority, showDeadCode, setNodes, setEdges]);
 
   if (!result) {
     return (
-      <div className="relative flex h-full min-h-[420px] items-center justify-center rounded-xl border border-border bg-gradient-card p-6">
-        <div
-          className="absolute inset-0 opacity-40 rounded-xl"
-          style={{
-            backgroundImage:
-              "linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)",
-            backgroundSize: "32px 32px",
-          }}
+      <div className="relative flex h-full min-h-[500px] items-center justify-center rounded-xl border border-border bg-gradient-card p-6">
+        <div className="absolute -right-10 top-10 h-40 w-40 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-10 h-40 w-40 rounded-full bg-primary-glow/10 blur-3xl pointer-events-none" />
+        <EmptyState
+          icon={Network}
+          title="Dependency graph will appear here"
+          description="Once a repository is analyzed, modules and their relationships will render as an interactive graph."
+          className="max-w-md border-none bg-card/60 backdrop-blur"
         />
-        <div className="absolute -right-10 top-10 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute bottom-0 left-10 h-40 w-40 rounded-full bg-primary-glow/10 blur-3xl" />
-        <div className="relative">
-          <EmptyState
-            icon={Network}
-            title="Dependency graph will appear here"
-            description="Once a repository is analyzed, modules and their relationships will render as an interactive graph."
-            className="max-w-md border-none bg-card/60 backdrop-blur"
-          />
-        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative h-full min-h-[420px] w-full overflow-hidden rounded-xl border border-border bg-gradient-card">
-      {/* Decorative grid */}
-      <div
-        className="absolute inset-0 opacity-20"
-        style={{
-          backgroundImage:
-            "linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)",
-          backgroundSize: "32px 32px",
-        }}
-      />
-
-      <svg
-        viewBox={`0 0 ${bbox.w} ${bbox.h}`}
-        className="relative z-10 h-full w-full"
-        style={{ minHeight: 420 }}
-      >
-        <defs>
-          <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L6,3 z" fill="#6b7280" opacity="0.6" />
-          </marker>
-        </defs>
-
-        {/* Edges */}
-        {edges.map((edge) => {
-          const src = nodeMap.get(edge.source);
-          const tgt = nodeMap.get(edge.target);
-          if (!src || !tgt) return null;
-          return (
-            <line
-              key={edge.id}
-              x1={src.x} y1={src.y}
-              x2={tgt.x} y2={tgt.y}
-              stroke="#6b7280"
-              strokeWidth={1}
-              strokeOpacity={0.35}
-              markerEnd="url(#arrow)"
+    <div className="flex flex-col h-full min-h-[600px] w-full rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+      
+      {/* Top Filter Toolbar */}
+      <div className="flex flex-wrap items-center justify-between border-b border-border bg-muted/40 px-4 py-2 gap-4">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mr-4">
+          <Filter className="h-3.5 w-3.5" /> Filter Noise
+        </div>
+        
+        <div className="flex flex-wrap gap-4 items-center">
+          <label className="flex items-center gap-2 text-xs cursor-pointer hover:text-foreground transition-colors group">
+            <input 
+              type="checkbox" 
+              checked={showLowPriority} 
+              onChange={(e) => setShowLowPriority(e.target.checked)}
+              className="accent-primary w-3.5 h-3.5"
             />
-          );
-        })}
-
-        {/* Nodes */}
-        {nodes.map((node) => {
-          const color = node.is_entry ? "#22d3ee" : TAG_COLOR[node.tag] ?? "#6b7280";
-          const r = node.is_entry ? NODE_RADIUS + 4 : NODE_RADIUS;
-          const label = node.label.split("/").pop() ?? node.label;
-
-          return (
-            <g key={node.id}>
-              {/* Glow ring for entry */}
-              {node.is_entry && (
-                <circle cx={node.x} cy={node.y} r={r + 5} fill={color} opacity={0.15} />
-              )}
-              <circle
-                cx={node.x}
-                cy={node.y}
-                r={r}
-                fill={color}
-                opacity={node.is_dead ? 0.3 : 0.85}
-                stroke={node.is_entry ? "#22d3ee" : "transparent"}
-                strokeWidth={node.is_entry ? 2 : 0}
-              />
-              <text
-                x={node.x}
-                y={node.y + r + 12}
-                textAnchor="middle"
-                fontSize={9}
-                fill="#9ca3af"
-                className="select-none"
-              >
-                {label.length > 18 ? label.slice(0, 16) + "…" : label}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-
-      {/* Legend */}
-      <div className="absolute bottom-3 left-3 flex gap-3 rounded-lg border border-border/40 bg-card/80 backdrop-blur px-3 py-2 text-[10px] text-muted-foreground">
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-cyan-400" /> Entry</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-violet-400" /> High</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-400" /> Medium</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-gray-500" /> Low</span>
+            <span className={showLowPriority ? "text-foreground font-medium" : "text-muted-foreground"}>
+              Show Low-Priority Configs
+            </span>
+          </label>
+          
+          <label className="flex items-center gap-2 text-xs cursor-pointer hover:text-foreground transition-colors group">
+            <input 
+              type="checkbox" 
+              checked={showDeadCode} 
+              onChange={(e) => setShowDeadCode(e.target.checked)}
+              className="accent-primary w-3.5 h-3.5"
+            />
+             <span className={showDeadCode ? "text-foreground font-medium" : "text-muted-foreground"}>
+              Show Unused (Dead) Code
+            </span>
+          </label>
+        </div>
       </div>
 
-      <div className="absolute bottom-3 right-3 rounded-lg border border-border/40 bg-card/80 backdrop-blur px-3 py-2 text-[10px] text-muted-foreground">
-        {nodes.length} nodes · {edges.length} edges
+      {/* Interactive Canvas */}
+      <div className="flex-1 w-full bg-background relative">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          fitView
+          minZoom={0.1}
+          maxZoom={1.5}
+          attributionPosition="bottom-right"
+        >
+          <Background color="#ccc" variant={BackgroundVariant.Dots} gap={24} size={1} />
+          <Controls className="bg-card border-border shadow-md" />
+          <MiniMap 
+            className="bg-card border-border shadow-md rounded-md overflow-hidden !bottom-4 !right-4"
+            nodeColor={(n) => {
+              if (n.data?.is_entry) return "#22d3ee";
+              if (n.data?.tag === "HIGH") return "#a78bfa";
+              if (n.data?.tag === "MEDIUM") return "#fbbf24";
+              return "#6b7280";
+            }}
+            maskColor="rgba(0,0,0,0.1)"
+          />
+        </ReactFlow>
+
+        {/* Legend */}
+        <div className="absolute bottom-4 left-4 z-10 flex gap-3 rounded-md border border-border/40 bg-card/90 backdrop-blur px-3 py-2 text-[10px] text-muted-foreground shadow-sm">
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-cyan-400" /> Entry</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-violet-400" /> High</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-400" /> Medium</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-gray-500" /> Low</span>
+        </div>
       </div>
     </div>
   );
 };
+
+export const GraphViewer = () => (
+   <ReactFlowProvider>
+     <GraphCanvas />
+   </ReactFlowProvider>
+);
