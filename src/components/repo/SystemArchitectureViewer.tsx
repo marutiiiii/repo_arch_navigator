@@ -176,18 +176,33 @@ const SystemArchitectureCanvas = ({ onNodeSelect }: SystemArchitectureViewerProp
 
     // ── ROLE-BASED VIEW ──────────────────────────────────
     else {
-      // Build short-path → absolute-id map from graph nodes
+      // Build TWO lookup maps between short labels and absolute graph IDs
       const shortToAbs = new Map<string, string>();
-      result.graph.nodes.forEach((n) => shortToAbs.set(n.label, n.id));
+      result.graph.nodes.forEach((n) => {
+        shortToAbs.set(n.label, n.id);
+        // Also index the normalized version so backslash/forwardslash mismatches don't fail
+        shortToAbs.set(n.label.replace(/\\/g, "/"), n.id);
+      });
+
+      // Assign fallback role if backend hasn't been updated yet
+      const getRole = (f: { file: string; role?: string }) => {
+        if (f.role) return f.role;
+        const lc = f.file.replace(/\\/g, "/").toLowerCase();
+        if (lc.endsWith(".tsx") || lc.endsWith(".jsx") || lc.endsWith(".css") || lc.endsWith(".html") || lc.includes("src/pages") || lc.includes("src/components") || lc.includes("src/views")) return "Frontend";
+        if (lc.endsWith(".json") || lc.endsWith(".yml") || lc.endsWith(".yaml") || lc.endsWith(".toml") || lc.endsWith(".md") || lc.endsWith(".txt")) return "Config";
+        return "Backend";
+      };
 
       const filteredFiles = result.analysis.filter((f) => {
-        if (selectedRole !== "All Roles" && f.role !== selectedRole) return false;
+        const role = getRole(f);
+        if (selectedRole !== "All Roles" && role !== selectedRole) return false;
         return true;
       });
 
       const activeAbsIds = new Set<string>();
       filteredFiles.forEach((f) => {
-        const abs = shortToAbs.get(f.file);
+        const normalized = f.file.replace(/\\/g, "/");
+        const abs = shortToAbs.get(f.file) || shortToAbs.get(normalized);
         if (abs) activeAbsIds.add(abs);
       });
 
@@ -216,7 +231,8 @@ const SystemArchitectureCanvas = ({ onNodeSelect }: SystemArchitectureViewerProp
         }
         const fd = folderMap.get(folder)!;
         fd.child_count += 1;
-        const abs = shortToAbs.get(f.file);
+        const normalized = f.file.replace(/\\/g, "/");
+        const abs = shortToAbs.get(f.file) || shortToAbs.get(normalized);
         if (abs) fd.children.push(abs);
         if (f.is_entry) fd.is_entry = true;
         if (!f.is_dead) fd.is_dead = false;
@@ -233,9 +249,13 @@ const SystemArchitectureCanvas = ({ onNodeSelect }: SystemArchitectureViewerProp
       const fEdgeMap = new Map<string, any>();
       let ec = 0;
       result.graph.edges.forEach((e) => {
-        if (!activeAbsIds.has(e.source) || !activeAbsIds.has(e.target)) return;
-        const s = nodeToFolder.get(e.source);
-        const t = nodeToFolder.get(e.target);
+        // Check membership using both raw and normalized forms
+        const srcIn = activeAbsIds.has(e.source) || activeAbsIds.has(e.source.replace(/\\/g, "/"));
+        const tgtIn = activeAbsIds.has(e.target) || activeAbsIds.has(e.target.replace(/\\/g, "/"));
+        if (!srcIn || !tgtIn) return;
+
+        const s = nodeToFolder.get(e.source) || nodeToFolder.get(e.source.replace(/\\/g, "/"));
+        const t = nodeToFolder.get(e.target) || nodeToFolder.get(e.target.replace(/\\/g, "/"));
         if (s && t && s !== t) {
           const key = `${s}=>${t}`;
           if (!fEdgeMap.has(key)) {
