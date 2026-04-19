@@ -112,11 +112,11 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
 // --------------------------------------------------------
 // 3. Main Viewer Component
 // --------------------------------------------------------
-interface GraphViewerProps {
+interface SystemArchitectureViewerProps {
   onNodeSelect?: (path: string) => void;
 }
 
-const GraphCanvas = ({ onNodeSelect }: GraphViewerProps) => {
+const SystemArchitectureCanvas = ({ onNodeSelect }: SystemArchitectureViewerProps) => {
   const { result } = useRepoAnalysis();
   
   // Filtering states
@@ -296,8 +296,8 @@ const GraphCanvas = ({ onNodeSelect }: GraphViewerProps) => {
   );
 };
 
-export const GraphViewer = (props: GraphViewerProps) => (
+export const SystemArchitectureViewer = (props: SystemArchitectureViewerProps) => (
    <ReactFlowProvider>
-     <GraphCanvas {...props} />
+     <SystemArchitectureCanvas {...props} />
    </ReactFlowProvider>
 );

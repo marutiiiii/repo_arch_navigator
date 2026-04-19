@@ -7,8 +7,10 @@ import { GraphViewer } from "@/components/repo/GraphViewer";
 import { FileDetailsCard } from "@/components/repo/FileDetailsCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, RefreshCw, ArrowLeft } from "lucide-react";
+import { Download, RefreshCw, ArrowLeft, Network, Activity } from "lucide-react";
 import { useRepoAnalysis } from "@/context/RepoAnalysisContext";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SystemArchitectureViewer } from "@/components/repo/SystemArchitectureViewer";
 
 export type SelectionItem = { type: 'file' | 'folder', path: string };
 
@@ -82,18 +84,34 @@ const RepositoryAnalysis = () => {
           </CardContent>
         </Card>
 
-        {/* Center — Graph */}
+        {/* Center — Graph Viewers */}
         <Card className="lg:col-span-6 border-border/60">
           <CardContent className="p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">Dependency Graph</h3>
-              <Badge variant="secondary" className="text-[10px]">
-                {result
-                  ? `${result.graph.nodes.length}n · ${result.graph.edges.length}e`
-                  : "graph"}
-              </Badge>
-            </div>
-            <GraphViewer onNodeSelect={(path) => setSelectedItem({ type: 'folder', path })} />
+            <Tabs defaultValue="dependency">
+              <div className="mb-3 flex items-center justify-between">
+                <TabsList className="h-8">
+                  <TabsTrigger value="dependency" className="text-xs px-3">
+                    <Network className="w-3 h-3 mr-1.5" /> Dependency Graph
+                  </TabsTrigger>
+                  <TabsTrigger value="architecture" className="text-xs px-3">
+                    <Activity className="w-3 h-3 mr-1.5" /> System Architecture (Roles & Flows)
+                  </TabsTrigger>
+                </TabsList>
+                <Badge variant="secondary" className="text-[10px]">
+                  {result
+                    ? `${result.graph.nodes.length}n · ${result.graph.edges.length}e`
+                    : "graph"}
+                </Badge>
+              </div>
+
+              <TabsContent value="dependency" className="m-0 mt-2">
+                <GraphViewer onNodeSelect={(path) => setSelectedItem({ type: 'folder', path })} />
+              </TabsContent>
+
+              <TabsContent value="architecture" className="m-0 mt-2">
+                <SystemArchitectureViewer onNodeSelect={(path) => setSelectedItem({ type: 'folder', path })} />
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
