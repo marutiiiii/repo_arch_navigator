@@ -10,9 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Download, RefreshCw, ArrowLeft } from "lucide-react";
 import { useRepoAnalysis } from "@/context/RepoAnalysisContext";
 
+export type SelectionItem = { type: 'file' | 'folder', path: string };
+
 const RepositoryAnalysis = () => {
   const { result, setResult } = useRepoAnalysis();
-  const [selectedFile, setSelectedFile] = useState<string | undefined>();
+  const [selectedItem, setSelectedItem] = useState<SelectionItem | undefined>();
   const navigate = useNavigate();
 
   function handleReset() {
@@ -72,7 +74,10 @@ const RepositoryAnalysis = () => {
               </Badge>
             </div>
             <div className="max-h-[640px] overflow-y-auto pr-1">
-              <FileTree onFileSelect={setSelectedFile} selectedFile={selectedFile} />
+              <FileTree 
+                onFileSelect={(path) => setSelectedItem({ type: 'file', path })} 
+                selectedFile={selectedItem?.type === 'file' ? selectedItem.path : undefined} 
+              />
             </div>
           </CardContent>
         </Card>
@@ -88,7 +93,7 @@ const RepositoryAnalysis = () => {
                   : "graph"}
               </Badge>
             </div>
-            <GraphViewer />
+            <GraphViewer onNodeSelect={(path) => setSelectedItem({ type: 'folder', path })} />
           </CardContent>
         </Card>
 
@@ -99,7 +104,10 @@ const RepositoryAnalysis = () => {
               <h3 className="text-sm font-semibold text-foreground">File Details</h3>
               <Badge variant="secondary" className="text-[10px]">inspector</Badge>
             </div>
-            <FileDetailsCard selectedFile={selectedFile} />
+            <FileDetailsCard 
+              selectedItem={selectedItem} 
+              onFileSelect={(path) => setSelectedItem({ type: 'file', path })}
+            />
           </CardContent>
         </Card>
       </div>

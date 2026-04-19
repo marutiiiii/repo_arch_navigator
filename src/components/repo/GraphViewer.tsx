@@ -112,7 +112,11 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
 // --------------------------------------------------------
 // 3. Main Viewer Component
 // --------------------------------------------------------
-const GraphCanvas = () => {
+interface GraphViewerProps {
+  onNodeSelect?: (path: string) => void;
+}
+
+const GraphCanvas = ({ onNodeSelect }: GraphViewerProps) => {
   const { result } = useRepoAnalysis();
   
   // Filtering states
@@ -280,6 +284,11 @@ const GraphCanvas = () => {
           nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
+          onNodeClick={(_, node) => {
+            if (onNodeSelect && node.data?.label) {
+              onNodeSelect(node.data.label as string);
+            }
+          }}
           fitView
           minZoom={0.1}
           maxZoom={1.5}
@@ -311,8 +320,8 @@ const GraphCanvas = () => {
   );
 };
 
-export const GraphViewer = () => (
+export const GraphViewer = (props: GraphViewerProps) => (
    <ReactFlowProvider>
-     <GraphCanvas />
+     <GraphCanvas {...props} />
    </ReactFlowProvider>
 );
