@@ -33,10 +33,12 @@ def _score_file(question_tokens: set[str], filepath: str, repo_path: str) -> flo
     """Return a relevance score for a single file."""
     score = 0.0
 
-    # 1) Path/filename tokens
+    # 1) Path/filename match (higher weight)
     rel = filepath.replace(repo_path, "").replace("\\", "/").lstrip("/")
-    path_tokens = _tokenize(rel)
-    score += len(question_tokens & path_tokens) * 3.0   # path match weights more
+    rel_lower = rel.lower()
+    for qt in question_tokens:
+        if qt in rel_lower:
+            score += 3.0
 
     # 2) Skip unreadable / huge / binary files
     ext = os.path.splitext(filepath)[1].lower()
@@ -48,17 +50,16 @@ def _score_file(question_tokens: set[str], filepath: str, repo_path: str) -> flo
         if size > _MAX_FILE_BYTES:
             return score
 
+        # Read the file up to _CONTENT_CHARS
         with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-            lines = []
-            for i, line in enumerate(f):
-                if i >= _PREVIEW_LINES:
-                    break
-                lines.append(line)
-
-        preview = "".join(lines)
-        preview_tokens = _tokenize(preview)
-        score += len(question_tokens & preview_tokens) * 1.0
-
+            preview = f.read(_CONTENT_CHARS).lower()
+        
+        # Substring match in the file content
+        for qt in question_tokens:
+            count = preview.count(qt)
+            if count > 0:
+                score += min(count * 1.0, 5.0)  # cap at 5 points per keyword
+                
     except Exception:
         pass
 
@@ -73,13 +74,16 @@ def get_relevant_files(question: str, files: list[str], repo_path: str, top_k: i
     """
     question_tokens = _tokenize(question)
     if not question_tokens:
-        # Fallback: just pick the top-scored files from logic module scores
-        return _read_top_files(files, repo_path, top_k)
+        return []
 
     scored = []
     for f in files:
         s = _score_file(question_tokens, f, repo_path)
-        scored.append((s, f))
+        if s > 0:
+            scored.append((s, f))
+
+    if not scored:
+        return [] # Don't fall back to random files if nothing matches
 
     scored.sort(key=lambda x: x[0], reverse=True)
     top = scored[:top_k]

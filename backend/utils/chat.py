@@ -60,14 +60,20 @@ def ask_code(question: str, repo_path: str, files: list[str]) -> dict:
                 referenced_files.append(item["path"])
 
         if not code_context.strip():
-            code_context = "(No readable source files found for this question.)"
+            # If no files found, provide the list of all files as context
+            repo_tree = "\n".join([f.replace(repo_path, "").replace("\\", "/").lstrip("/") for f in files])
+            # Trim tree if it's insanely large
+            if len(repo_tree) > 2000:
+                repo_tree = repo_tree[:2000] + "\n... (truncated)"
+            
+            code_context = f"(No highly relevant source code files found for this exact question.)\n\nHowever, here is the entire repository file structure to help you infer the answer:\n\n{repo_tree}"
 
         system_prompt = (
             "You are a senior software engineer performing a code review. "
-            "Answer ONLY based on the code snippets provided below. "
+            "Answer ONLY based on the code snippets or file structure provided below. "
             "When citing specific logic, always mention the filename. "
             "Format code examples with triple backticks. "
-            "If the answer cannot be determined from the code, say so clearly."
+            "If the answer cannot be determined from the context, say so clearly."
         )
 
         user_prompt = f"""
@@ -75,10 +81,10 @@ The developer is asking about their codebase:
 
 QUESTION: {question}
 
-RELEVANT CODE FILES:
+RELEVANT CODE/CONTEXT:
 {code_context}
 
-Please provide a clear, accurate answer based on the code above.
+Please provide a clear, accurate answer based on the context above.
 """
 
         response = ollama.chat(

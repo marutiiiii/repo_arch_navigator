@@ -20,7 +20,7 @@ current_user = {
 }
 
 def get_github_login_url():
-    return f"https://github.com/login/oauth/authorize?client_id={GITHUB_CLIENT_ID}&scope=user,repo"
+    return f"https://github.com/login/oauth/authorize?client_id={GITHUB_CLIENT_ID}&scope=user,repo&prompt=consent"
 
 def handle_github_callback(code):
     # Exchange code for token
@@ -78,7 +78,7 @@ def handle_github_callback(code):
 
 def get_google_login_url():
     redirect_uri = "http://127.0.0.1:5000/auth/google/callback"
-    return f"https://accounts.google.com/o/oauth2/v2/auth?client_id={GOOGLE_CLIENT_ID}&redirect_uri={redirect_uri}&response_type=code&scope=email profile"
+    return f"https://accounts.google.com/o/oauth2/v2/auth?client_id={GOOGLE_CLIENT_ID}&redirect_uri={redirect_uri}&response_type=code&scope=email profile&prompt=select_account"
 
 def handle_google_callback(code):
     redirect_uri = "http://127.0.0.1:5000/auth/google/callback"
