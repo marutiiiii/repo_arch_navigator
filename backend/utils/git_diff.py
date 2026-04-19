@@ -6,7 +6,7 @@ def get_git_changes(repo_path):
     try:
         commit_info = subprocess.check_output(
             ["git", "-C", repo_path, "log", "-1", "--pretty=format:%H||%an||%ad||%s"],
-            text=True
+            encoding="utf-8", errors="replace"
         ).strip().split("||")
         
         if len(commit_info) == 4:
@@ -18,7 +18,7 @@ def get_git_changes(repo_path):
         try:
             diff_output = subprocess.check_output(
                 ["git", "-C", repo_path, "diff", "HEAD~1", "HEAD"],
-                text=True,
+                encoding="utf-8", errors="replace",
                 stderr=subprocess.DEVNULL
             )
             
