@@ -2,6 +2,7 @@ import { Network } from "lucide-react";
 import { EmptyState } from "@/components/states/EmptyState";
 import { useRepoAnalysis } from "@/context/RepoAnalysisContext";
 import { useMemo } from "react";
+import dagre from "dagre";
 
 const TAG_COLOR: Record<string, string> = {
   HIGH:   "#a78bfa",  // violet
@@ -17,51 +18,63 @@ const PADDING = 48;
 export const GraphViewer = () => {
   const { result } = useRepoAnalysis();
 
-  const { nodes, nodeMap, edges } = useMemo(() => {
-    if (!result?.graph) return { nodes: [], nodeMap: new Map(), edges: [] };
+  const { nodes, nodeMap, edges, bbox } = useMemo(() => {
+    if (!result?.graph || result.graph.nodes.length === 0) 
+      return { nodes: [], nodeMap: new Map(), edges: [], bbox: { w: CANVAS_W, h: CANVAS_H } };
 
     const raw = result.graph.nodes;
     const rawEdges = result.graph.edges;
 
-    // Simple force-free layout: evenly distribute nodes in concentric rings
-    const total = raw.length;
-    const cx = CANVAS_W / 2;
-    const cy = CANVAS_H / 2;
+    const g = new dagre.graphlib.Graph();
+    g.setGraph({ rankdir: "TB", nodesep: 80, ranksep: 120 });
+    g.setDefaultEdgeLabel(() => ({}));
 
-    const positioned = raw.map((n, i) => {
-      if (n.is_entry) return { ...n, x: cx, y: PADDING };
-
-      const nonEntry = raw.filter((x) => !x.is_entry);
-      const idx = nonEntry.findIndex((x) => x.id === n.id);
-      const count = nonEntry.length;
-
-      // Two rings: inner (HIGH), outer (rest)
-      const isInner = n.tag === "HIGH";
-      const innerNodes = nonEntry.filter((x) => x.tag === "HIGH");
-      const outerNodes = nonEntry.filter((x) => x.tag !== "HIGH");
-
-      let angle: number;
-      let radius: number;
-
-      if (isInner) {
-        const pos = innerNodes.findIndex((x) => x.id === n.id);
-        angle = (2 * Math.PI * pos) / Math.max(innerNodes.length, 1) - Math.PI / 2;
-        radius = Math.min(CANVAS_W, CANVAS_H) * 0.28;
-      } else {
-        const pos = outerNodes.findIndex((x) => x.id === n.id);
-        angle = (2 * Math.PI * pos) / Math.max(outerNodes.length, 1) - Math.PI / 2;
-        radius = Math.min(CANVAS_W, CANVAS_H) * 0.44;
-      }
-
-      return {
-        ...n,
-        x: cx + radius * Math.cos(angle),
-        y: cy + radius * Math.sin(angle) + 30,
-      };
+    // Add nodes to dagre
+    raw.forEach((n) => {
+      // rough sizing to prevent overlap. The circle itself is small, but labeling needs space.
+      g.setNode(n.id, { width: 140, height: 60 });
     });
 
-    const map = new Map(positioned.map((n) => [n.id, n]));
-    return { nodes: positioned, nodeMap: map, edges: rawEdges };
+    // Add edges to dagre
+    rawEdges.forEach((e) => {
+      g.setEdge(e.source, e.target);
+    });
+
+    // Compute topological layout
+    dagre.layout(g);
+
+    let minX = Infinity, minY = Infinity;
+    let maxX = -Infinity, maxY = -Infinity;
+
+    // Get nodes
+    const positioned = raw.map((n) => {
+      const dNode = g.node(n.id);
+      if (dNode.x < minX) minX = dNode.x;
+      if (dNode.y < minY) minY = dNode.y;
+      if (dNode.x > maxX) maxX = dNode.x;
+      if (dNode.y > maxY) maxY = dNode.y;
+      return { ...n, x: dNode.x, y: dNode.y };
+    });
+
+    // Apply padding
+    const paddingX = 120;
+    const paddingY = 80;
+    const width = maxX - minX + paddingX * 2;
+    const height = maxY - minY + paddingY * 2;
+
+    const finalPlaced = positioned.map((n) => ({
+      ...n,
+      x: n.x - minX + paddingX,
+      y: n.y - minY + paddingY,
+    }));
+
+    const map = new Map(finalPlaced.map((n) => [n.id, n]));
+    return { 
+      nodes: finalPlaced, 
+      nodeMap: map, 
+      edges: rawEdges, 
+      bbox: { w: Math.max(width, CANVAS_W), h: Math.max(height, CANVAS_H) } 
+    };
   }, [result]);
 
   if (!result) {
@@ -102,7 +115,7 @@ export const GraphViewer = () => {
       />
 
       <svg
-        viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
+        viewBox={`0 0 ${bbox.w} ${bbox.h}`}
         className="relative z-10 h-full w-full"
         style={{ minHeight: 420 }}
       >
