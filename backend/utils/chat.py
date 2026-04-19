@@ -1,4 +1,9 @@
-import ollama
+try:
+    import ollama
+    OLLAMA_AVAILABLE = True
+except Exception:
+    OLLAMA_AVAILABLE = False
+
 from utils.code_search import get_relevant_files
 
 
@@ -29,7 +34,9 @@ def ask_repo(question, explanations):
         response = ollama.chat(
             model="llama3",
             messages=[{"role": "user", "content": prompt}]
-        )
+        ) if OLLAMA_AVAILABLE else None
+        if not response:
+            return "AI features are unavailable in this environment. To enable, run Ollama locally with `ollama serve`."
         return response["message"]["content"]
 
     except Exception as e:
@@ -86,6 +93,12 @@ RELEVANT CODE/CONTEXT:
 
 Please provide a clear, accurate answer based on the context above.
 """
+
+        if not OLLAMA_AVAILABLE:
+            return {
+                "answer": "AI features require Ollama running locally. The analysis features above still work without AI.",
+                "referenced_files": referenced_files
+            }
 
         response = ollama.chat(
             model="llama3",

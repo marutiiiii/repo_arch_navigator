@@ -23,7 +23,18 @@ from utils.auth import (
 )
 
 app = Flask(__name__)
-CORS(app)  # Allow requests from any origin (React dev server)
+
+# Allow CORS from the configured frontend URL (Vercel or localhost)
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            FRONTEND_URL,
+            "http://localhost:8080",
+            "http://127.0.0.1:8080"
+        ],
+        "supports_credentials": True
+    }
+})
 
 # ─────────────────────────────────────────
 # Health check
@@ -260,4 +271,6 @@ def ask_endpoint():
 
 # ─────────────────────────────────────────
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    debug = os.environ.get("FLASK_ENV") != "production"
+    app.run(host="0.0.0.0", port=port, debug=debug)

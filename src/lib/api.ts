@@ -1,5 +1,5 @@
-// Base URL of the Flask backend
-const BASE_URL = "http://127.0.0.1:5000";
+// Base URL of the Flask backend – set VITE_API_URL in .env / Vercel env vars
+const BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
 
 export interface AskCodeResponse {
   answer: string;

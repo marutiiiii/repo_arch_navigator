@@ -9,6 +9,7 @@ GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:8080")
+API_URL = os.getenv("API_URL", "http://127.0.0.1:5000")
 
 # In-memory session store for local dev
 current_user = {
@@ -77,11 +78,11 @@ def handle_github_callback(code):
     return True
 
 def get_google_login_url():
-    redirect_uri = "http://127.0.0.1:5000/auth/google/callback"
+    redirect_uri = f"{API_URL}/auth/google/callback"
     return f"https://accounts.google.com/o/oauth2/v2/auth?client_id={GOOGLE_CLIENT_ID}&redirect_uri={redirect_uri}&response_type=code&scope=email profile&prompt=select_account"
 
 def handle_google_callback(code):
-    redirect_uri = "http://127.0.0.1:5000/auth/google/callback"
+    redirect_uri = f"{API_URL}/auth/google/callback"
     token_response = requests.post(
         "https://oauth2.googleapis.com/token",
         data={
