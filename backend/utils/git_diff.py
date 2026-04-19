@@ -38,30 +38,8 @@ def get_git_changes(repo_path):
         # Here we just pass the diff and let the UI show it or some simple stat.
         # But UI expects before/after content. We will try to get the first file that was modified.
         
-        try:
-            changed_files = subprocess.check_output(
-                ["git", "-C", repo_path, "diff", "--name-only", "HEAD~1", "HEAD"],
-                text=True,
-                stderr=subprocess.DEVNULL
-            ).strip().split("\n")
-            
-            first_file = changed_files[0] if changed_files and changed_files[0] else None
-            
-            if first_file:
-                try:
-                    before_content = subprocess.check_output(["git", "-C", repo_path, "show", f"HEAD~1:{first_file}"], text=True, stderr=subprocess.DEVNULL)
-                except:
-                    before_content = ""
-                try:
-                    after_content = subprocess.check_output(["git", "-C", repo_path, "show", f"HEAD:{first_file}"], text=True, stderr=subprocess.DEVNULL)
-                except:
-                    after_content = ""
-            else:
-                before_content = ""
-                after_content = ""
-        except:
-            before_content = ""
-            after_content = ""
+        before_content = ""
+        after_content = ""
 
         return {
             "commit": {

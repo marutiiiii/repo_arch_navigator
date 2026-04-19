@@ -23,6 +23,13 @@ def clone_repository(repo_url):
             print("Error cloning repo:", e)
             return None
     else:
-        print("Repo already exists. Using existing copy.")
-    
+        print("Repo already exists. Pulling latest changes...")
+        try:
+            repo = Repo(clone_path)
+            repo.remotes.origin.pull()
+            print("Pulled latest changes successfully!")
+        except Exception as e:
+            print("Error pulling latest changes:", e)
+            # We don't return None here so analysis can still proceed with older code if offline
+            
     return clone_path
