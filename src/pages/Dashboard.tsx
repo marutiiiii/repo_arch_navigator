@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/states/EmptyState";
+import { Input } from "@/components/ui/input";
 import { analyzeRepo } from "@/lib/api";
 import { useRepoAnalysis } from "@/context/RepoAnalysisContext";
 import { useAuth, Repo } from "@/context/AuthContext";
@@ -17,6 +18,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { result, setResult, isLoading, setIsLoading, error, setError } = useRepoAnalysis();
   const { logged_in, profile, repos, loading: authLoading } = useAuth();
+  const [url, setUrl] = useState("");
   
   useEffect(() => {
     if (!authLoading && !logged_in) {
@@ -71,6 +73,32 @@ const Dashboard = () => {
             <Badge variant="secondary" className="text-xs">
               {repos.length} Repos
             </Badge>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row mb-2">
+            <div className="relative flex-1">
+              <Github className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAnalyze(url)}
+                placeholder="Or manually paste a public GitHub URL to analyze..."
+                className="h-11 pl-10 bg-card/60 backdrop-blur"
+                disabled={isLoading}
+              />
+            </div>
+            <Button
+              size="lg"
+              className="h-11 bg-primary hover:bg-primary/90 min-w-[160px]"
+              onClick={() => handleAnalyze(url)}
+              disabled={isLoading || !url.trim()}
+            >
+              {isLoading ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing</>
+              ) : (
+                <>Analyze Repo <ArrowRight className="ml-1.5 h-4 w-4" /></>
+              )}
+            </Button>
           </div>
 
           {!repos || repos.length === 0 ? (
