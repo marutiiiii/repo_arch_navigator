@@ -37,14 +37,11 @@ export const FileDetailsCard = ({ selectedItem, onFileSelect }: Props) => {
     const folderPath = selectedItem.path;
     const isRoot = folderPath === "/ (Root Files)";
     
-    // Find all files in this folder
+    // Find all files in this macro-folder
     const childFiles = result.analysis.filter(f => {
-      const parts = f.file.replace(/\\/g, "/").split("/");
-      if (isRoot) return parts.length <= 1;
-      
-      parts.pop();
-      const parentDir = parts.join("/");
-      return parentDir === folderPath;
+      const normalizedPath = f.file.replace(/\\/g, "/");
+      if (isRoot) return normalizedPath.indexOf("/") === -1;
+      return normalizedPath.startsWith(folderPath + "/") || normalizedPath === folderPath;
     });
 
     // Sort: HIGH > MEDIUM > LOW

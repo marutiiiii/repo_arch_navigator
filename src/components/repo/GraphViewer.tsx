@@ -133,25 +133,24 @@ const GraphCanvas = ({ onNodeSelect }: GraphViewerProps) => {
 
     let activeNodes = result.graph.nodes;
 
-    // Pre-filter files to calculate boundaries before grouping
-    const filteredFileNodes = activeNodes.filter(n => {
-       if (!showLowPriority && n.tag === "LOW" && !n.is_entry) return false;
-       if (!showDeadCode && n.is_dead && !n.is_entry) return false;
-       return true;
-    });
-
     // --- FOLDER LEVEL AGGREGATION ---
     const folderMap = new Map(); // folderPath -> { data ... }
     
-    // Normalizes file path to extract its immediate directory
+    // Smart Macro-Architecture grouping
     const getFolder = (label: string) => {
       const parts = label.replace(/\\/g, "/").split("/");
       if (parts.length <= 1) return "/ (Root Files)";
-      parts.pop(); // remove the filename
-      return parts.join("/");
+      
+      // If it's in a massive top-level directory like "src", go one level deep to split components/pages
+      if (parts[0] === 'src' && parts.length > 2) {
+         return `${parts[0]}/${parts[1]}`;
+      }
+      
+      // Otherwise, group by the top-level directory (e.g. backend, scripts)
+      return parts[0];
     };
 
-    filteredFileNodes.forEach(n => {
+    activeNodes.forEach(n => {
       const folder = getFolder(n.label);
       if (!folderMap.has(folder)) {
         folderMap.set(folder, {
@@ -222,7 +221,7 @@ const GraphCanvas = ({ onNodeSelect }: GraphViewerProps) => {
     setNodes(layouted.nodes);
     setEdges(layouted.edges);
 
-  }, [result, showLowPriority, showDeadCode, setNodes, setEdges]);
+  }, [result, setNodes, setEdges]);
 
   if (!result) {
     return (
@@ -248,31 +247,8 @@ const GraphCanvas = ({ onNodeSelect }: GraphViewerProps) => {
           <FolderTree className="h-4 w-4 text-primary" /> Architectural Data Flow
         </div>
         
-        <div className="flex flex-wrap gap-4 items-center">
-          {/* Filtering Sub-options */}
-          <label className="flex items-center gap-2 text-xs cursor-pointer hover:text-foreground transition-colors group">
-            <input 
-              type="checkbox" 
-              checked={showLowPriority} 
-              onChange={(e) => setShowLowPriority(e.target.checked)}
-              className="accent-primary w-3.5 h-3.5"
-            />
-            <span className={showLowPriority ? "text-foreground font-medium" : "text-muted-foreground"}>
-              Include Low-Priority Configs
-            </span>
-          </label>
-          
-          <label className="flex items-center gap-2 text-xs cursor-pointer hover:text-foreground transition-colors group">
-            <input 
-              type="checkbox" 
-              checked={showDeadCode} 
-              onChange={(e) => setShowDeadCode(e.target.checked)}
-              className="accent-primary w-3.5 h-3.5"
-            />
-             <span className={showDeadCode ? "text-foreground font-medium" : "text-muted-foreground"}>
-              Include Unused Architecture
-            </span>
-          </label>
+        <div className="flex items-center px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-[10px] text-primary font-bold tracking-wider uppercase">
+           Macro-Architecture Mode Active
         </div>
       </div>
 
