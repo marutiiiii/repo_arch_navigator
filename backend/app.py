@@ -12,6 +12,8 @@ from utils.logic import (
     tag_files,
     find_dead_code,
     build_file_tree,
+    detect_roles,
+    trace_flows
 )
 from utils.compatibility import analyze_compatibility
 from utils.git_diff import get_git_changes
@@ -111,6 +113,8 @@ def analyze_repo():
         entry      = detect_entry_point(files)
         scores     = calculate_importance(files, dependencies)
         tags       = tag_files(scores)
+        roles      = detect_roles(files)
+        flows      = trace_flows(files, dependencies)
         dead       = find_dead_code(files, dependencies)
         file_tree  = build_file_tree(files, repo_path)
         graph_data = build_graph_data(files, dependencies, scores, tags, entry, repo_path)
@@ -135,6 +139,7 @@ def analyze_repo():
                 "file":     short(f),
                 "score":    scores.get(f, 0),
                 "tag":      tags.get(f, "LOW"),
+                "role":     roles.get(f, "Backend"),
                 "is_entry": f == entry,
                 "is_dead":  f in dead,
             }
@@ -153,6 +158,7 @@ def analyze_repo():
             "total_files":       len(files),
             "total_dependencies": len(dependencies),
             "analysis":          analysis,
+            "flows":             [{ "name": flow["name"], "steps": [short(step) for step in flow["steps"]] } for flow in flows],
             "file_tree":         file_tree,
             "graph":             graph_data,
             "explanations": {

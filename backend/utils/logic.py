@@ -1,4 +1,5 @@
 import os
+from collections import deque
 
 
 def detect_entry_point(files):
@@ -83,3 +84,69 @@ def build_file_tree(files, repo_path):
 
     # Return just the children of the virtual root
     return root["children"]
+
+def detect_roles(files):
+    """Assign a system role to each file based on heuristics."""
+    roles = {}
+    for file in files:
+        f_lower = file.replace("\\", "/").lower()
+        if "src/components" in f_lower or "src/pages" in f_lower or "src/views" in f_lower or f_lower.endswith((".tsx", ".jsx", ".html", ".css")):
+            roles[file] = "Frontend"
+        elif "db/" in f_lower or "models/" in f_lower or f_lower.endswith((".sql", ".prisma")):
+            roles[file] = "Database"
+        elif "ai/" in f_lower or "ml/" in f_lower or "langchain" in f_lower or f_lower.endswith(".ipynb"):
+            roles[file] = "AI/ML"
+        elif f_lower.endswith((".json", ".yml", ".yaml", "dockerfile", ".toml", ".ini", ".env.example", ".txt", ".md")):
+            roles[file] = "Config"
+        else:
+            roles[file] = "Backend"
+    return roles
+
+def trace_flows(files, dependencies):
+    """Find specific workflows like Auth, Login, Payment via BFS traversal."""
+    flows = []
+    
+    triggers = {
+        "Authentication": ["auth", "login", "register", "signup"],
+        "Payment": ["payment", "checkout", "billing", "stripe"],
+        "User Profile": ["profile", "user"],
+        "Data Export": ["export", "download"]
+    }
+    
+    # build adjacency list
+    adj = {f: [] for f in files}
+    for src, dest in dependencies:
+        for f in files:
+            if dest in f.replace("\\", "/"):
+                if src in adj:
+                    adj[src].append(f)
+
+    def bfs(start_node):
+        path = []
+        q = deque([start_node])
+        visited = set([start_node])
+        while q:
+            curr = q.popleft()
+            path.append(curr)
+            for nxt in adj.get(curr, []):
+                if nxt not in visited:
+                    visited.add(nxt)
+                    q.append(nxt)
+        return path
+
+    found_flows = set()
+    for flow_name, keywords in triggers.items():
+        if flow_name in found_flows: continue
+        for file in files:
+            f_lower = file.replace("\\", "/").lower()
+            if any(f"/{k}" in f_lower or f"{k}." in f_lower for k in keywords):
+                path = bfs(file)
+                if len(path) > 1: # Requires at least one connected node to be a flow
+                    flows.append({
+                        "name": flow_name,
+                        "steps": path
+                    })
+                    found_flows.add(flow_name)
+                    break
+    
+    return flows

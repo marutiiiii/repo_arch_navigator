@@ -10,8 +10,14 @@ export interface FileAnalysis {
   file: string;
   score: number;
   tag: "HIGH" | "MEDIUM" | "LOW";
+  role?: "Frontend" | "Backend" | "Database" | "AI/ML" | "Config";
   is_entry: boolean;
   is_dead: boolean;
+}
+
+export interface WorkflowFlow {
+  name: string;
+  steps: string[];
 }
 
 export interface GraphNode {
@@ -42,6 +48,7 @@ export interface AnalysisResult {
   total_files: number;
   total_dependencies: number;
   analysis: FileAnalysis[];
+  flows?: WorkflowFlow[];
   file_tree: FileTreeNode[];
   graph: { nodes: GraphNode[]; edges: GraphEdge[] };
   explanations: {
