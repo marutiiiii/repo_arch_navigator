@@ -216,14 +216,25 @@ const GraphCanvas = ({ onNodeSelect }: GraphViewerProps) => {
     } 
     // --- CASE 2: ROLE-BASED MACRO VIEW ---
     else {
-      let activeFileIds = new Set<string>();
+      // Map short paths (f.file) to absolute IDs (n.id) for edge matching
+      const shortToAbs = new Map<string, string>();
+      const absToShort = new Map<string, string>();
+      result.graph.nodes.forEach(n => {
+        shortToAbs.set(n.label, n.id);
+        absToShort.set(n.id, n.label);
+      });
+
+      let activeFileAbsIds = new Set<string>();
       
       // Filter the underlying files by role if requested
       const filteredFiles = result.analysis.filter(f => {
          if (selectedRole !== "All Roles" && f.role !== selectedRole) return false;
          return true;
       });
-      filteredFiles.forEach(f => activeFileIds.add(f.file));
+      filteredFiles.forEach(f => {
+        const absId = shortToAbs.get(f.file);
+        if (absId) activeFileAbsIds.add(absId);
+      });
 
       const folderMap = new Map(); 
       
@@ -252,7 +263,8 @@ const GraphCanvas = ({ onNodeSelect }: GraphViewerProps) => {
         }
         const fd = folderMap.get(folder);
         fd.child_count += 1;
-        fd.children.push(f.file);
+        const absId = shortToAbs.get(f.file);
+        if (absId) fd.children.push(absId); // Push absolute ID!
         if (f.is_entry) fd.is_entry = true;
         if (!f.is_dead) fd.is_dead = false;
 
@@ -270,7 +282,7 @@ const GraphCanvas = ({ onNodeSelect }: GraphViewerProps) => {
       let edgeCounter = 0;
 
       result.graph.edges.forEach(e => {
-         if (!activeFileIds.has(e.source) || !activeFileIds.has(e.target)) return;
+         if (!activeFileAbsIds.has(e.source) || !activeFileAbsIds.has(e.target)) return;
 
          const srcFolder = nodeToFolder.get(e.source);
          const tgtFolder = nodeToFolder.get(e.target);
