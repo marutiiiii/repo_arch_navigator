@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (lint, test, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Existing lint errors in the codebase; reported but not blocking yet.
+      - run: npm run lint
+        continue-on-error: true
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_API_URL: https://example.invalid
+
+  backend:
+    name: Backend (install, import check)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Import app and hit /health
+        run: |
+          python - <<'PY'
+          from app import app
+          r = app.test_client().get("/health")
+          assert r.status_code == 200, r.status_code
+          print("health ok")
+          PY
