@@ -33,3 +33,5 @@ dist/
 npm-debug.log*
 
 repos/
+.env.local
+.env.*.local

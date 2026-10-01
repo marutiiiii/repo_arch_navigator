@@ -149,7 +149,7 @@ const AskCode = () => {
     } catch (e: unknown) {
       const errMsg: ChatMessage = {
         role: "ai",
-        content: e instanceof Error ? e.message : "Error communicating with Ollama.",
+        content: e instanceof Error ? e.message : "Error communicating with Gemini.",
         timestamp: Date.now(),
       };
       setChatHistory((prev) => [...prev, errMsg]);
@@ -185,7 +185,7 @@ const AskCode = () => {
     <div className="flex flex-col space-y-4 h-[calc(100vh-7rem)]">
       <SectionHeader
         title="Ask the Code"
-        description={`Powered by Ollama llama3 · ${result.repo_url.split("/").slice(-2).join("/")}`}
+        description={`Powered by Google Gemini · ${result.repo_url.split("/").slice(-2).join("/")}`}
         actions={
           <>
             <Badge variant="secondary" className="text-[10px]">

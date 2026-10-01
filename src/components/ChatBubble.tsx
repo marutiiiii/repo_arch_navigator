@@ -15,7 +15,7 @@ export const ChatBubble = () => {
       <Button
         onClick={() => navigate("/ask")}
         className="h-14 w-14 rounded-full shadow-glow bg-gradient-primary hover:opacity-90 flex flex-col items-center justify-center gap-0.5 group"
-        title="Ask the Code — Powered by Ollama"
+        title="Ask the Code — Powered by Gemini"
       >
         <MessageSquareCode className="h-6 w-6" />
       </Button>

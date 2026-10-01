@@ -1,9 +1,4 @@
-try:
-    import ollama
-    OLLAMA_AVAILABLE = True
-except Exception:
-    OLLAMA_AVAILABLE = False
-
+from utils import gemini
 from utils.code_search import get_relevant_files
 
 
@@ -31,13 +26,9 @@ def ask_repo(question, explanations):
         Answer clearly in simple terms.
         """
 
-        response = ollama.chat(
-            model="llama3",
-            messages=[{"role": "user", "content": prompt}]
-        ) if OLLAMA_AVAILABLE else None
-        if not response:
-            return "AI features are unavailable in this environment. To enable, run Ollama locally with `ollama serve`."
-        return response["message"]["content"]
+        if not gemini.GEMINI_AVAILABLE:
+            return "AI features are unavailable. Set GEMINI_API_KEY in backend/.env to enable."
+        return gemini.generate(prompt)
 
     except Exception as e:
         return f"Error answering question: {e}"
@@ -52,7 +43,7 @@ def ask_code(question: str, repo_path: str, files: list[str]) -> dict:
 
     1. Retrieve the top-K most relevant files via keyword scoring.
     2. Build a rich prompt with actual code snippets.
-    3. Call Ollama llama3.
+    3. Call Gemini.
     4. Return { answer, referenced_files }.
     """
     try:
@@ -94,25 +85,17 @@ RELEVANT CODE/CONTEXT:
 Please provide a clear, accurate answer based on the context above.
 """
 
-        if not OLLAMA_AVAILABLE:
+        if not gemini.GEMINI_AVAILABLE:
             return {
-                "answer": "AI features require Ollama running locally. The analysis features above still work without AI.",
+                "answer": "AI features require GEMINI_API_KEY to be set in backend/.env. The analysis features above still work without AI.",
                 "referenced_files": referenced_files
             }
 
-        response = ollama.chat(
-            model="llama3",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user",   "content": user_prompt},
-            ]
-        )
-
-        answer = response["message"]["content"]
+        answer = gemini.generate(user_prompt, system=system_prompt)
         return {"answer": answer, "referenced_files": referenced_files}
 
     except Exception as e:
         return {
-            "answer": f"Error communicating with Ollama: {e}. Make sure Ollama is running with `ollama serve` and llama3 is pulled.",
+            "answer": f"Error communicating with Gemini: {e}. Check that GEMINI_API_KEY in backend/.env is valid.",
             "referenced_files": []
         }

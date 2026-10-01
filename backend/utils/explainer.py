@@ -1,5 +1,6 @@
-import ollama
 import os
+
+from utils import gemini
 
 
 def read_file(file_path):
@@ -21,14 +22,7 @@ def ai_explain(file_name, content):
         {content[:1500]}
         """
 
-        response = ollama.chat(
-            model="llama3",
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
-
-        return response["message"]["content"].strip()
+        return gemini.generate(prompt).strip()
 
     except Exception as e:
         return "Explanation unavailable."
@@ -49,5 +43,5 @@ def generate_explanations(files, scores, entry):
     return {
         "file_explanations": explanations,
         "learning_path": learning_path,
-        "project_summary": "Generated using local AI model (Ollama)."
+        "project_summary": "Generated using Google Gemini."
     }
