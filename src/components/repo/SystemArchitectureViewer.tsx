@@ -160,23 +160,8 @@ const SystemArchitectureCanvas = ({ onNodeSelect }: SystemArchitectureViewerProp
   const [selectedRole, setSelectedRole] = useState<string>("All Roles");
   const [selectedFlow, setSelectedFlow] = useState<string>("Role View");
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([
-    {
-      id: 'test-node-1',
-      type: 'archNode',
-      position: { x: 100, y: 100 },
-      data: { label: 'TEST NODE 1 INITIAL', is_folder: true, child_count: 5, tag: 'HIGH' }
-    },
-    {
-      id: 'test-node-2',
-      type: 'archNode',
-      position: { x: 400, y: 100 },
-      data: { label: 'TEST NODE 2 INITIAL', is_folder: true, child_count: 2, tag: 'MEDIUM' }
-    }
-  ]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([
-    { id: 'test-edge-1', source: 'test-node-1', target: 'test-node-2', animated: true, style: { stroke: "#ff0000", strokeWidth: 5 } }
-  ]);
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
     if (!result?.graph) return;
@@ -324,16 +309,16 @@ const SystemArchitectureCanvas = ({ onNodeSelect }: SystemArchitectureViewerProp
     if (rfNodes.length > 0) {
       try {
         const layouted = getLayoutedElements(rfNodes, rfEdges, selectedFlow !== "Role View");
-        // COMMENTED OUT FOR DEBUGGING
-        // setNodes(layouted.nodes);
-        // setEdges(layouted.edges);
+        setNodes(layouted.nodes);
+        setEdges(layouted.edges);
       } catch (err) {
         console.error("Dagre layout error:", err);
+        setNodes([]);
+        setEdges([]);
       }
     } else {
-      // COMMENTED OUT FOR DEBUGGING
-      // setNodes([]);
-      // setEdges([]);
+      setNodes([]);
+      setEdges([]);
     }
   }, [result, selectedRole, selectedFlow, setNodes, setEdges]);
 
@@ -401,6 +386,7 @@ const SystemArchitectureCanvas = ({ onNodeSelect }: SystemArchitectureViewerProp
 
         <FlowErrorBoundary>
           <ReactFlow
+            key={nodes.length > 0 ? 'loaded' : 'empty'}
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}

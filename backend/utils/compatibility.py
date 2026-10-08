@@ -26,9 +26,13 @@ def analyze_compatibility(repo_path):
                         "docker-compose.yml", "Dockerfile", "go.mod", "pom.xml", "build.gradle"]:
                 found_files[file] = os.path.join(root, file)
 
-    # 2. Analyze Node.js
+    # 2. Analyze Node.js/JS Ecosystem
     if "package.json" in found_files:
-        reqs["Languages"].append("Node.js")
+        if "tsconfig.json" in found_files:
+            reqs["Languages"].append("TypeScript")
+        else:
+            reqs["Languages"].append("JavaScript")
+        reqs["Required Services"].append("Node.js Runtime")
         
         # Check locks for package manager
         if "yarn.lock" in found_files and "package-lock.json" in found_files:
