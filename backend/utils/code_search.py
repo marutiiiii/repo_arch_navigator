@@ -66,33 +66,67 @@ def _score_file(question_tokens: set[str], filepath: str, repo_path: str) -> flo
     return score
 
 
-def get_relevant_files(question: str, files: list[str], repo_path: str, top_k: int = 5) -> list[dict]:
+def get_relevant_files(question: str, files: list[str], repo_path: str, dependencies: list[tuple], top_k: int = 3) -> list[dict]:
     """
-    Return a list of top_k most relevant files with their content.
-
-    Each item: { "path": relative_path, "content": truncated_code }
+    Return relevant files using adaptive graph-based context expansion.
     """
     question_tokens = _tokenize(question)
     if not question_tokens:
         return []
 
-    scored = []
+    # 1. Score all files initially
+    file_scores = {}
     for f in files:
         s = _score_file(question_tokens, f, repo_path)
         if s > 0:
-            scored.append((s, f))
+            file_scores[f] = s
 
-    if not scored:
-        return [] # Don't fall back to random files if nothing matches
+    if not file_scores:
+        return []
 
-    scored.sort(key=lambda x: x[0], reverse=True)
-    top = scored[:top_k]
+    # 2. Select initial seeds
+    scored = sorted(file_scores.items(), key=lambda x: x[1], reverse=True)
+    seeds = [f for f, s in scored[:top_k]]
+    
+    # 3. Graph-based expansion (1 hop)
+    expanded_set = set(seeds)
+    for f in seeds:
+        f_short = f.replace(repo_path, "").replace("\\", "/").lstrip("/")
+        for src, tgt in dependencies:
+            if tgt in f_short:  # f is imported by src
+                for src_file in files:
+                    if src in src_file.replace("\\", "/"):
+                        expanded_set.add(src_file)
+            if src in f_short:  # f imports tgt
+                for tgt_file in files:
+                    if tgt in tgt_file.replace("\\", "/"):
+                        expanded_set.add(tgt_file)
 
+    # 4. Score expanded files and sort
+    final_scored = []
+    for f in expanded_set:
+        s = file_scores.get(f, _score_file(question_tokens, f, repo_path))
+        # Give a slight boost for being structurally related
+        final_scored.append((s + 0.5, f))
+    
+    final_scored.sort(key=lambda x: x[0], reverse=True)
+
+    # 5. Collect content until context budget is reached
     results = []
-    for _, filepath in top:
+    total_chars = 0
+    CONTEXT_BUDGET_CHARS = 12000
+
+    for _, filepath in final_scored:
         rel = filepath.replace(repo_path, "").replace("\\", "/").lstrip("/")
         content = _read_file_content(filepath)
+        if not content.strip():
+            continue
+            
         results.append({"path": rel, "content": content})
+        total_chars += len(content)
+        
+        if total_chars > CONTEXT_BUDGET_CHARS:
+            break
 
     return results
 

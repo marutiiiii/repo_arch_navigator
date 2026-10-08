@@ -35,8 +35,8 @@ const ChangeAnalyzer = () => {
       try {
         const changes = await getChanges(result.repo_url);
         if (mounted) setData(changes);
-      } catch (e: any) {
-        if (mounted) setError(e.message || "Failed to load git changes.");
+      } catch (e: unknown) {
+        if (mounted) setError(e instanceof Error ? e.message : "Failed to load git changes.");
       } finally {
         if (mounted) setLoading(false);
       }

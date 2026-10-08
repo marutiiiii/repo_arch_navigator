@@ -148,5 +148,48 @@ def trace_flows(files, dependencies):
                     })
                     found_flows.add(flow_name)
                     break
-    
     return flows
+
+def find_circular_dependencies(files, dependencies):
+    """Detect circular dependencies (cycles in the dependency graph)."""
+    adj = {f: [] for f in files}
+    for src, dest in dependencies:
+        for f in files:
+            if dest in f.replace("\\", "/"):
+                if src in adj:
+                    adj[src].append(f)
+
+    cycles = []
+    state = {f: 0 for f in files}
+    parent = {f: None for f in files}
+    
+    def dfs(node):
+        state[node] = 1
+        for neighbor in adj.get(node, []):
+            if state[neighbor] == 0:
+                parent[neighbor] = node
+                dfs(neighbor)
+            elif state[neighbor] == 1:
+                # Cycle detected
+                cycle_path = [neighbor, node]
+                curr = node
+                while curr != neighbor and curr is not None:
+                    curr = parent.get(curr)
+                    if curr is not None and curr not in cycle_path:
+                        cycle_path.insert(0, curr)
+                cycles.append(cycle_path)
+        state[node] = 2
+
+    for f in files:
+        if state[f] == 0:
+            dfs(f)
+            
+    unique_cycles = []
+    seen = set()
+    for c in cycles:
+        c_set = frozenset(c)
+        if c_set not in seen and len(c) > 1:
+            seen.add(c_set)
+            unique_cycles.append(c)
+            
+    return unique_cycles

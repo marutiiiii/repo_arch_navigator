@@ -131,7 +131,7 @@ const GraphCanvas = ({ onNodeSelect }: GraphViewerProps) => {
   useEffect(() => {
     if (!result?.graph) return;
 
-    let activeNodes = result.graph.nodes;
+    const activeNodes = result.graph.nodes;
 
     // --- FOLDER LEVEL AGGREGATION ---
     const folderMap = new Map(); // folderPath -> { data ... }

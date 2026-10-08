@@ -13,10 +13,13 @@ from utils.logic import (
     find_dead_code,
     build_file_tree,
     detect_roles,
-    trace_flows
+    trace_flows,
+    find_circular_dependencies
 )
 from utils.compatibility import analyze_compatibility
 from utils.git_diff import get_git_changes
+from utils.dead_code import analyze_dead_code
+from utils.environment import identify_environment
 from flask import redirect
 from utils.auth import (
     get_github_login_url, handle_github_callback,
@@ -118,6 +121,8 @@ def analyze_repo():
         dead       = find_dead_code(files, dependencies)
         file_tree  = build_file_tree(files, repo_path)
         graph_data = build_graph_data(files, dependencies, scores, tags, entry, repo_path)
+        circular   = find_circular_dependencies(files, dependencies)
+        environment_info = identify_environment(repo_path)
 
         # 4) AI explanations — only run if caller requests it (?explain=true)
         #    Skipped by default because Ollama can take 60+ seconds on large repos.
@@ -160,6 +165,8 @@ def analyze_repo():
             "analysis":          analysis,
             "flows":             [{ "name": flow["name"], "steps": [short(step) for step in flow["steps"]] } for flow in flows],
             "file_tree":         file_tree,
+            "environment":       environment_info,
+            "circular_dependencies": [[short(step) for step in cycle] for cycle in circular],
             "graph":             graph_data,
             "explanations": {
                 "file_explanations": short_explanations,
@@ -267,9 +274,77 @@ def ask_endpoint():
 
         # Re-scan files from disk (fast, no git needed)
         files = get_files(repo_path)
+        dependencies = extract_dependencies(files)
 
-        result = ask_code(question, repo_path, files)
+        result = ask_code(question, repo_path, files, dependencies)
         return jsonify(result), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────────────────────
+# Dead Code endpoint
+# ─────────────────────────────────────────
+@app.route('/dead-code', methods=['POST'])
+def dead_code():
+    try:
+        data = request.get_json(silent=True) or {}
+        repo_url = data.get("repo_url", "").strip()
+        if not repo_url:
+            return jsonify({"error": "repo_url is required"}), 400
+
+        base_dir = "repos"
+        repo_name = repo_url.split("/")[-1].replace(".git", "")
+        repo_path = os.path.join(base_dir, repo_name)
+
+        if not os.path.exists(repo_path):
+            return jsonify({"error": "Repo not found locally. Please analyze it first."}), 404
+
+        files = get_files(repo_path)
+        dependencies = extract_dependencies(files)
+        report = analyze_dead_code(files, dependencies, repo_path)
+        return jsonify(report), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────────────────────
+# File Content endpoint (for dead-code preview)
+# ─────────────────────────────────────────
+@app.route('/file-content', methods=['POST'])
+def file_content():
+    try:
+        data = request.get_json(silent=True) or {}
+        repo_url  = data.get("repo_url", "").strip()
+        file_path = data.get("file_path", "").strip()
+
+        if not repo_url or not file_path:
+            return jsonify({"error": "repo_url and file_path are required"}), 400
+
+        base_dir  = "repos"
+        repo_name = repo_url.split("/")[-1].replace(".git", "")
+        repo_path = os.path.join(base_dir, repo_name)
+
+        if not os.path.exists(repo_path):
+            return jsonify({"error": "Repo not found locally. Please analyze it first."}), 404
+
+        # Resolve the absolute path, guard against path traversal
+        abs_file = os.path.normpath(os.path.join(repo_path, file_path))
+        if not abs_file.startswith(os.path.normpath(repo_path)):
+            return jsonify({"error": "Access denied"}), 403
+
+        if not os.path.isfile(abs_file):
+            return jsonify({"error": "File not found"}), 404
+
+        try:
+            with open(abs_file, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+        return jsonify({"content": content}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

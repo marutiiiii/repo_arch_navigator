@@ -25,8 +25,8 @@ const Compatibility = () => {
       try {
         const data = await getCompatibility(result.repo_url);
         if (mounted) setReport(data);
-      } catch (e: any) {
-        if (mounted) setError(e.message || "Failed to load compatibility report.");
+      } catch (e: unknown) {
+        if (mounted) setError(e instanceof Error ? e.message : "Failed to load compatibility report.");
       } finally {
         if (mounted) setLoading(false);
       }

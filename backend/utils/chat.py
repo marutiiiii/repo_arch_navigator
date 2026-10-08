@@ -37,7 +37,7 @@ def ask_repo(question, explanations):
 # ─────────────────────────────────────────────────────────────
 # Advanced RAG-powered ask
 # ─────────────────────────────────────────────────────────────
-def ask_code(question: str, repo_path: str, files: list[str]) -> dict:
+def ask_code(question: str, repo_path: str, files: list[str], dependencies: list[tuple]) -> dict:
     """
     Ask a natural-language question about the repo.
 
@@ -47,7 +47,7 @@ def ask_code(question: str, repo_path: str, files: list[str]) -> dict:
     4. Return { answer, referenced_files }.
     """
     try:
-        relevant = get_relevant_files(question, files, repo_path, top_k=5)
+        relevant = get_relevant_files(question, files, repo_path, dependencies, top_k=3)
 
         # Build the code context block
         code_context = ""

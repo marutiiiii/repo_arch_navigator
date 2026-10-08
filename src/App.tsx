@@ -12,6 +12,7 @@ import AskCode from "./pages/AskCode.tsx";
 import Settings from "./pages/Settings.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Login from "./pages/Login.tsx";
+import DeadCodeAnalyzer from "./pages/DeadCodeAnalyzer.tsx";
 import { RepoAnalysisProvider } from "./context/RepoAnalysisContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
@@ -33,6 +34,7 @@ const App = () => (
               <Route path="/compatibility" element={<Compatibility />} />
               <Route path="/changes" element={<ChangeAnalyzer />} />
               <Route path="/ask" element={<AskCode />} />
+              <Route path="/dead-code" element={<DeadCodeAnalyzer />} />
               <Route path="/settings" element={<Settings />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

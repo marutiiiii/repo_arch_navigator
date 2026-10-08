@@ -65,6 +65,33 @@ export interface CompatibilityReport {
   commands: string;
 }
 
+export interface DeadSnippet {
+  file: string;
+  name: string;
+  kind: "function" | "class" | "export";
+  lineno: number;
+  end_lineno: number;
+  lines: number;
+  is_private: boolean;
+  confidence: number;
+}
+
+export interface DeadFile {
+  file: string;
+  lines: number;
+  confidence: number;
+}
+
+export interface DeadCodeReport {
+  summary: {
+    dead_files: number;
+    dead_snippets: number;
+    total_lines_recoverable: number;
+  };
+  dead_files: DeadFile[];
+  dead_snippets: DeadSnippet[];
+}
+
 export interface ChangeAnalysis {
   commit: {
     message: string;
@@ -170,4 +197,38 @@ export async function askCode(
   }
 
   return res.json();
+}
+
+export async function getDeadCode(repoUrl: string): Promise<DeadCodeReport> {
+  const res = await fetch(`${BASE_URL}/dead-code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ repo_url: repoUrl }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Unknown error" }));
+    throw new Error(err.error ?? `HTTP ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export async function getFileContent(
+  repoUrl: string,
+  filePath: string
+): Promise<string> {
+  const res = await fetch(`${BASE_URL}/file-content`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ repo_url: repoUrl, file_path: filePath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Unknown error" }));
+    throw new Error(err.error ?? `HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.content ?? "";
 }
