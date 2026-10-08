@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Component, ErrorInfo, ReactNode } from "react";
 import { Network, FolderTree, Activity, Shield, FileCode } from "lucide-react";
 import { EmptyState } from "@/components/states/EmptyState";
 import { useRepoAnalysis } from "@/context/RepoAnalysisContext";
@@ -121,7 +121,34 @@ const getLayoutedElements = (nodes: any[], edges: any[], isFlow: boolean, direct
 };
 
 // --------------------------------------------------------
-// 3. Main component
+// 3. Error Boundary
+// --------------------------------------------------------
+class FlowErrorBoundary extends Component<{children: ReactNode}, {hasError: boolean, error: string}> {
+  constructor(props: {children: ReactNode}) {
+    super(props);
+    this.state = { hasError: false, error: "" };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error: error.message };
+  }
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("ReactFlow Error:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-500/10 p-4 text-red-500 z-50">
+          <h3 className="font-bold text-lg">ReactFlow Crashed</h3>
+          <p className="font-mono text-xs mt-2">{this.state.error}</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// --------------------------------------------------------
+// 4. Main component
 // --------------------------------------------------------
 interface SystemArchitectureViewerProps {
   onNodeSelect?: (path: string) => void;
@@ -280,10 +307,19 @@ const SystemArchitectureCanvas = ({ onNodeSelect }: SystemArchitectureViewerProp
     }
 
     if (rfNodes.length > 0) {
-      const layouted = getLayoutedElements(rfNodes, rfEdges, selectedFlow !== "Role View");
-      setNodes(layouted.nodes);
-      setEdges(layouted.edges);
+      try {
+        const layouted = getLayoutedElements(rfNodes, rfEdges, selectedFlow !== "Role View");
+        console.log("SystemArch Layouted Nodes:", layouted.nodes.length, layouted.nodes);
+        console.log("SystemArch Layouted Edges:", layouted.edges.length, layouted.edges);
+        setNodes(layouted.nodes);
+        setEdges(layouted.edges);
+      } catch (err) {
+        console.error("Dagre layout error:", err);
+        setNodes([]);
+        setEdges([]);
+      }
     } else {
+      console.log("SystemArch rfNodes empty");
       setNodes([]);
       setEdges([]);
     }
@@ -351,36 +387,38 @@ const SystemArchitectureCanvas = ({ onNodeSelect }: SystemArchitectureViewerProp
           </div>
         )}
 
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeClick={(_, node) => {
-            if (onNodeSelect && node.data?.label) {
-              onNodeSelect(node.data.label as string);
-            }
-          }}
-          fitView
-          minZoom={0.1}
-          maxZoom={1.5}
-          attributionPosition="bottom-right"
-        >
-          <Background color="#a3a3a3" variant={BackgroundVariant.Dots} gap={32} size={1.5} opacity={0.3} />
-          <Controls className="bg-card border-border shadow-md" />
-          <MiniMap
-            className="bg-card border-border shadow-md rounded-md overflow-hidden !bottom-4 !right-4"
-            nodeColor={(n) => {
-              if (n.data?.is_entry) return "#22d3ee";
-              if (n.data?.role) return ROLE_COLOR[n.data.role as string] ?? "#6b7280";
-              if (n.data?.tag === "HIGH") return "#a78bfa";
-              if (n.data?.tag === "MEDIUM") return "#fbbf24";
-              return "#6b7280";
+        <FlowErrorBoundary>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onNodeClick={(_, node) => {
+              if (onNodeSelect && node.data?.label) {
+                onNodeSelect(node.data.label as string);
+              }
             }}
-            maskColor="rgba(0,0,0,0.1)"
-          />
-        </ReactFlow>
+            fitView
+            minZoom={0.1}
+            maxZoom={1.5}
+            attributionPosition="bottom-right"
+          >
+            <Background color="#a3a3a3" variant={BackgroundVariant.Dots} gap={32} size={1.5} opacity={0.3} />
+            <Controls className="bg-card border-border shadow-md" />
+            <MiniMap
+              className="bg-card border-border shadow-md rounded-md overflow-hidden !bottom-4 !right-4"
+              nodeColor={(n) => {
+                if (n.data?.is_entry) return "#22d3ee";
+                if (n.data?.role) return ROLE_COLOR[n.data.role as string] ?? "#6b7280";
+                if (n.data?.tag === "HIGH") return "#a78bfa";
+                if (n.data?.tag === "MEDIUM") return "#fbbf24";
+                return "#6b7280";
+              }}
+              maskColor="rgba(0,0,0,0.1)"
+            />
+          </ReactFlow>
+        </FlowErrorBoundary>
 
         {/* Legend */}
         <div className="absolute bottom-4 left-4 z-10 flex gap-3 rounded-md border border-border bg-card/95 backdrop-blur px-3 py-2 text-[10px] text-muted-foreground font-medium shadow-md">
