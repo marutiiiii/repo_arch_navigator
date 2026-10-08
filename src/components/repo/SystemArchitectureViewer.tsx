@@ -160,8 +160,23 @@ const SystemArchitectureCanvas = ({ onNodeSelect }: SystemArchitectureViewerProp
   const [selectedRole, setSelectedRole] = useState<string>("All Roles");
   const [selectedFlow, setSelectedFlow] = useState<string>("Role View");
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState([
+    {
+      id: 'test-node-1',
+      type: 'archNode',
+      position: { x: 100, y: 100 },
+      data: { label: 'TEST NODE 1 INITIAL', is_folder: true, child_count: 5, tag: 'HIGH' }
+    },
+    {
+      id: 'test-node-2',
+      type: 'archNode',
+      position: { x: 400, y: 100 },
+      data: { label: 'TEST NODE 2 INITIAL', is_folder: true, child_count: 2, tag: 'MEDIUM' }
+    }
+  ]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([
+    { id: 'test-edge-1', source: 'test-node-1', target: 'test-node-2', animated: true, style: { stroke: "#ff0000", strokeWidth: 5 } }
+  ]);
 
   useEffect(() => {
     if (!result?.graph) return;
@@ -309,38 +324,16 @@ const SystemArchitectureCanvas = ({ onNodeSelect }: SystemArchitectureViewerProp
     if (rfNodes.length > 0) {
       try {
         const layouted = getLayoutedElements(rfNodes, rfEdges, selectedFlow !== "Role View");
-        console.log("SystemArch Layouted Nodes:", layouted.nodes.length, layouted.nodes);
-        console.log("SystemArch Layouted Edges:", layouted.edges.length, layouted.edges);
-        
-        // --- HARDCODED OVERRIDE FOR DEBUGGING ---
-        setNodes([
-          {
-            id: 'test-node-1',
-            type: 'archNode',
-            position: { x: 100, y: 100 },
-            data: { label: 'TEST NODE 1 VISIBLE', is_folder: true, child_count: 5, tag: 'HIGH' }
-          },
-          {
-            id: 'test-node-2',
-            type: 'archNode',
-            position: { x: 400, y: 100 },
-            data: { label: 'TEST NODE 2 VISIBLE', is_folder: true, child_count: 2, tag: 'MEDIUM' }
-          }
-        ]);
-        setEdges([
-          { id: 'test-edge-1', source: 'test-node-1', target: 'test-node-2', animated: true, style: { stroke: "#ff0000", strokeWidth: 5 } }
-        ]);
-        // ----------------------------------------
-        
+        // COMMENTED OUT FOR DEBUGGING
+        // setNodes(layouted.nodes);
+        // setEdges(layouted.edges);
       } catch (err) {
         console.error("Dagre layout error:", err);
-        setNodes([]);
-        setEdges([]);
       }
     } else {
-      console.log("SystemArch rfNodes empty");
-      setNodes([]);
-      setEdges([]);
+      // COMMENTED OUT FOR DEBUGGING
+      // setNodes([]);
+      // setEdges([]);
     }
   }, [result, selectedRole, selectedFlow, setNodes, setEdges]);
 
