@@ -1,35 +1,23 @@
 import os
+import tempfile
 from git import Repo
 
 def clone_repository(repo_url):
-    # Create a base folder for repos
-    base_dir = "repos"
+    """
+    Stateless cloning: Clones the repo into a temporary directory 
+    with a depth of 2 (to allow for git diff HEAD~1).
+    Returns the TemporaryDirectory object (so it can be cleaned up later)
+    and the path to the cloned code.
+    """
+    temp_dir = tempfile.TemporaryDirectory()
+    clone_path = temp_dir.name
     
-    if not os.path.exists(base_dir):
-        os.makedirs(base_dir)
-    
-    # Extract repo name
-    repo_name = repo_url.split("/")[-1].replace(".git", "")
-    
-    clone_path = os.path.join(base_dir, repo_name)
-    
-    # Clone only if not already present
-    if not os.path.exists(clone_path):
-        try:
-            print("Cloning repository...")
-            Repo.clone_from(repo_url, clone_path)
-            print("Cloned successfully!")
-        except Exception as e:
-            print("Error cloning repo:", e)
-            return None
-    else:
-        print("Repo already exists. Pulling latest changes...")
-        try:
-            repo = Repo(clone_path)
-            repo.remotes.origin.pull()
-            print("Pulled latest changes successfully!")
-        except Exception as e:
-            print("Error pulling latest changes:", e)
-            # We don't return None here so analysis can still proceed with older code if offline
+    try:
+        # depth=2 is required so we have a previous commit to diff against
+        Repo.clone_from(repo_url, clone_path, depth=2)
+    except Exception as e:
+        print("Error cloning repo:", e)
+        temp_dir.cleanup()
+        return None, None
             
-    return clone_path
+    return temp_dir, clone_path

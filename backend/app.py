@@ -100,8 +100,8 @@ def analyze_repo():
         if not repo_url:
             return jsonify({"error": "repo_url is required"}), 400
 
-        # 1) Clone
-        repo_path = clone_repository(repo_url)
+        # 1) Clone Statelessly
+        temp_dir, repo_path = clone_repository(repo_url)
         if not repo_path:
             return jsonify({"error": "Failed to clone repository"}), 500
 
@@ -177,6 +177,9 @@ def analyze_repo():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if 'temp_dir' in locals() and temp_dir:
+            temp_dir.cleanup()
 
 
 # ─────────────────────────────────────────
@@ -210,16 +213,15 @@ def compatibility():
         if not repo_url:
             return jsonify({"error": "repo_url is required"}), 400
 
-        # Note: repo should already be cloned from /analyze. We'll format the local path
-        base_dir = "repos"
-        repo_name = repo_url.split("/")[-1].replace(".git", "")
-        repo_path = os.path.join(base_dir, repo_name)
-        
-        if not os.path.exists(repo_path):
-             return jsonify({"error": "Repo not found locally. Please analyze it first."}), 404
+        temp_dir, repo_path = clone_repository(repo_url)
+        if not repo_path:
+            return jsonify({"error": "Failed to clone repo for compatibility check"}), 500
 
-        report = analyze_compatibility(repo_path)
-        return jsonify(report), 200
+        try:
+            report = analyze_compatibility(repo_path)
+            return jsonify(report), 200
+        finally:
+            temp_dir.cleanup()
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -236,15 +238,15 @@ def changes():
         if not repo_url:
             return jsonify({"error": "repo_url is required"}), 400
 
-        base_dir = "repos"
-        repo_name = repo_url.split("/")[-1].replace(".git", "")
-        repo_path = os.path.join(base_dir, repo_name)
-        
-        if not os.path.exists(repo_path):
-             return jsonify({"error": "Repo not found locally. Please analyze it first."}), 404
+        temp_dir, repo_path = clone_repository(repo_url)
+        if not repo_path:
+            return jsonify({"error": "Failed to clone repo for changes check"}), 500
 
-        changes_data = get_git_changes(repo_path)
-        return jsonify(changes_data), 200
+        try:
+            changes_data = get_git_changes(repo_path)
+            return jsonify(changes_data), 200
+        finally:
+            temp_dir.cleanup()
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -265,19 +267,17 @@ def ask_endpoint():
         if not question:
             return jsonify({"error": "question is required"}), 400
 
-        base_dir = "repos"
-        repo_name = repo_url.split("/")[-1].replace(".git", "")
-        repo_path = os.path.join(base_dir, repo_name)
+        temp_dir, repo_path = clone_repository(repo_url)
+        if not repo_path:
+            return jsonify({"error": "Failed to clone repo for ask code"}), 500
 
-        if not os.path.exists(repo_path):
-            return jsonify({"error": "Repo not found locally. Please analyze it first."}), 404
-
-        # Re-scan files from disk (fast, no git needed)
-        files = get_files(repo_path)
-        dependencies = extract_dependencies(files)
-
-        result = ask_code(question, repo_path, files, dependencies)
-        return jsonify(result), 200
+        try:
+            files = get_files(repo_path)
+            dependencies = extract_dependencies(files)
+            result = ask_code(question, repo_path, files, dependencies)
+            return jsonify(result), 200
+        finally:
+            temp_dir.cleanup()
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -294,17 +294,17 @@ def dead_code():
         if not repo_url:
             return jsonify({"error": "repo_url is required"}), 400
 
-        base_dir = "repos"
-        repo_name = repo_url.split("/")[-1].replace(".git", "")
-        repo_path = os.path.join(base_dir, repo_name)
+        temp_dir, repo_path = clone_repository(repo_url)
+        if not repo_path:
+            return jsonify({"error": "Failed to clone repo for dead-code analysis"}), 500
 
-        if not os.path.exists(repo_path):
-            return jsonify({"error": "Repo not found locally. Please analyze it first."}), 404
-
-        files = get_files(repo_path)
-        dependencies = extract_dependencies(files)
-        report = analyze_dead_code(files, dependencies, repo_path)
-        return jsonify(report), 200
+        try:
+            files = get_files(repo_path)
+            dependencies = extract_dependencies(files)
+            report = analyze_dead_code(files, dependencies, repo_path)
+            return jsonify(report), 200
+        finally:
+            temp_dir.cleanup()
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -323,28 +323,28 @@ def file_content():
         if not repo_url or not file_path:
             return jsonify({"error": "repo_url and file_path are required"}), 400
 
-        base_dir  = "repos"
-        repo_name = repo_url.split("/")[-1].replace(".git", "")
-        repo_path = os.path.join(base_dir, repo_name)
-
-        if not os.path.exists(repo_path):
-            return jsonify({"error": "Repo not found locally. Please analyze it first."}), 404
-
-        # Resolve the absolute path, guard against path traversal
-        abs_file = os.path.normpath(os.path.join(repo_path, file_path))
-        if not abs_file.startswith(os.path.normpath(repo_path)):
-            return jsonify({"error": "Access denied"}), 403
-
-        if not os.path.isfile(abs_file):
-            return jsonify({"error": "File not found"}), 404
+        temp_dir, repo_path = clone_repository(repo_url)
+        if not repo_path:
+            return jsonify({"error": "Failed to clone repo for file-content preview"}), 500
 
         try:
-            with open(abs_file, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            # Resolve the absolute path, guard against path traversal
+            abs_file = os.path.normpath(os.path.join(repo_path, file_path))
+            if not abs_file.startswith(os.path.normpath(repo_path)):
+                return jsonify({"error": "Access denied"}), 403
 
-        return jsonify({"content": content}), 200
+            if not os.path.isfile(abs_file):
+                return jsonify({"error": "File not found"}), 404
+
+            try:
+                with open(abs_file, "r", encoding="utf-8", errors="replace") as f:
+                    content = f.read()
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+            return jsonify({"content": content}), 200
+        finally:
+            temp_dir.cleanup()
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
