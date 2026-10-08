@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useRepoAnalysis } from "@/context/RepoAnalysisContext";
 import { getCompatibility, CompatibilityReport } from "@/lib/api";
 
-const REQUIREMENTS_KEYS = ["Operating System", "Package Manager", "Runtime", "Language"];
+const REQUIREMENTS_KEYS = ["Operating System", "Package Manager", "Required Services", "Language"];
 
 const Compatibility = () => {
   const { result } = useRepoAnalysis();
