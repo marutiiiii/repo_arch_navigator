@@ -402,7 +402,7 @@ const SystemArchitectureCanvas = ({ onNodeSelect }: SystemArchitectureViewerProp
             maxZoom={1.5}
             attributionPosition="bottom-right"
           >
-            <Background color="#a3a3a3" variant={BackgroundVariant.Dots} gap={32} size={1.5} opacity={0.3} />
+            <Background color="#a3a3a3" variant={"dots" as "dots" | "lines" | "cross"} gap={32} size={1.5} opacity={0.3} />
             <Controls className="bg-card border-border shadow-md" />
             <MiniMap
               className="bg-card border-border shadow-md rounded-md overflow-hidden !bottom-4 !right-4"
