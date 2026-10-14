@@ -51,3 +51,23 @@ jobs:
           assert r.status_code == 200, r.status_code
           print("health ok")
           PY
+
+  docker:
+    name: Docker (Build & Verify)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup environment file
+        run: cp backend/.env.example backend/.env
+
+      - name: Build Docker images
+        run: docker compose build
+
+      - name: Test container startup
+        run: |
+          docker compose up -d
+          sleep 10
+          curl --fail http://localhost:5000/health || (docker compose logs && exit 1)
+          docker compose down
