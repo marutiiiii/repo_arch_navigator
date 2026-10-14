@@ -25,4 +25,5 @@ COPY . .
 EXPOSE 5000
 
 # Start server
-CMD ["python", "app.py"]
+# Run with Gunicorn WSGI server and dynamic $PORT with 120s timeout for git clones
+CMD sh -c "gunicorn app:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120"
